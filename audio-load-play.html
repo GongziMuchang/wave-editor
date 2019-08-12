@@ -1,0 +1,588 @@
+<html>
+<head>
+	<script type="text/javascript" src="https://cdn.jsdelivr.net/binaryjs/0.2.1/binary.min.js"></script>
+	<style type="text/css">
+		.scrollable {
+			height: 150px;
+			overflow-x: scroll;
+		}
+		a
+		{
+			cursor:pointer;
+		}
+	</style>
+</head>
+<body>
+<form>
+	<input type="button" value="Click to load 1" onclick="load('transaction_1232.wav', 'transaction_1232.lab')">
+	<input type="button" value="Click to load 2" onclick="load('transaction_1231.wav', 'transaction_1231.lab')">
+</form>
+<div class="scrollable">
+	<canvas id="Canvas" width="30000" height="120" style="border:1px solid #d3d3d3;"></canvas>
+</div>
+
+<br>
+<input type="button" id="btn" value="Play" onclick="draw_line()">
+<input type="button" value="Rewind" onclick="rewind_play()">
+<input type="button" value="Forward 10 sec." onclick="forward10s()">
+<input type="button" value="Backward 10 sec." onclick="backward10s()">
+<input type="button" value="Zoom In" onclick="zoomin()">
+<input type="button" value="Zoom Out" onclick="zoomout()">
+<textarea id="timeTxt" rows="1" cols="25" style="border:1px solid #74767a;"></textarea>
+
+ <select id="mySelect">
+  <option value="1231">1231</option>
+  <option value="1232">1232</option>
+</select>
+ <button type="button" onclick="loadSelected()">load selected</button>
+ <button type="button" onclick="updateTime()">update time</button>
+ <button type="button" onclick="saveToServer()">save to server</button>
+ <button type="button" onclick="back()">back to original</button>
+<p>
+
+<div id="myDiv">
+<textarea id="textarea" rows="100" cols="150" style="border:1px solid #74767a;" onclick="myFunction()"></textarea>
+</div>
+</body>
+
+<script>
+	var audioCtx = new AudioContext();
+	var bufferSize = audioCtx.sampleRate * 2000;
+	var audioBuffer = audioCtx.createBuffer(1, bufferSize, 16000);
+	var data, dataLabel, seconds;
+	var labelText;
+	var playing = 0;
+	var xPos = 0;
+	var sampleSource2;
+	var startSecond, stopSecond, playFromSecond;
+	var blueX, mouseX;
+	var canvas;
+	var ctx, m;
+	var total_samples, zoom;
+	var imgWidth, forwardSeconds, max;
+	var callingTime = 0;
+
+	document.getElementById("Canvas").addEventListener('mousedown', mouseDown);
+	document.getElementById("Canvas").addEventListener('mouseup', mouseUp);
+
+	function back()
+	{
+		document.getElementById("textarea").value = labelText;
+	}
+
+	function saveToServer()
+	{
+
+	}
+
+	function updateTime()
+	{
+		/*
+		var timeTxtValue = document.getElementById("timeTxt").value;
+		var tokenTime = timeTxtValue.split(" ");
+
+		startSecond = tokenTime[0];
+		stopSecond = tokenTime[1];
+		alert(startSecond + "  " + stopSecond);
+
+		var text = document.getElementById("textarea").value;
+		var tokens = text.split(/\s+/);
+		//alert(tokens);
+
+		var newText = "";
+
+		for(var i = 0; i < tokens.length - 2; i+=3)
+		{
+			if(tokens[i] == '*')
+			{
+				i += 1;
+				newText += "*" + " " + startSecond + " " + stopSecond + " " + tokens[i + 2] + "\n";
+			}
+			else
+				newText += tokens[i] + " " + tokens[i + 1] + " " + tokens[i + 2] + "\n";
+		}
+
+		document.getElementById("textarea").value = newText;
+		*/
+
+		var timeTxtValue = document.getElementById("timeTxt").value;
+		var tokenTime = timeTxtValue.split(" ");
+
+		startSecond = tokenTime[0];
+		stopSecond = tokenTime[1];
+
+		var text = document.getElementById("textarea").value;
+
+		for(var i = 0; i < text.length; i ++)
+		{
+			if(text.charAt(i) == '*')
+			{
+				break;
+			}
+		}
+
+		var a = "";
+
+		for(var j = 0; j < i; j ++)
+		{
+			a += text[j];
+		}
+
+		a += "* " + startSecond + " " + stopSecond + " ";
+
+		var numSpacesPassed = 0;
+
+		for(var j = i; j < text.length; j ++)
+		{
+			if(text.charAt(j) == ' ')
+			{
+				numSpacesPassed ++;
+			}
+
+			if(numSpacesPassed == 3)
+			{
+				break;
+			}
+		}
+
+		for(var k = j + 1; k < text.length; k ++)
+		{
+			a += text.charAt(k);
+		}
+
+		//alert(a);
+
+		document.getElementById("textarea").value = a;
+	}
+
+	function myFunction()
+	{
+		var ctl = document.getElementById('textarea');
+		var pos = ctl.selectionStart;
+		var initialText = "";
+		var temp = document.getElementById('textarea').value;
+
+
+		for(var i = 0; i < temp.length; i ++)  //remove "* "
+		{
+			if(temp.charAt(i) == '*')
+			{
+				i += 2;
+			}
+			//initialText += temp.charAt(i);
+			initialText += temp[i];
+		}
+
+
+		//var starPos = temp.indexOf("*");
+		//initialText = temp.substring(0, starPos);
+		//initialText += temp.substring(starPos + 2, temp.length);
+
+        //alert(initialText);
+		// get numberOfNewLinesBefore
+		var numberOfNewLinesBefore = 0;
+
+		for(var i = 0; i < initialText.length; i ++)
+		{
+			if(i == pos)
+				break;
+
+			if(initialText.charAt(i) == '\n')
+				numberOfNewLinesBefore ++;
+		}
+		// got numberOfNewLinesBefore
+
+		// draw * in front of clicked row
+		temp = "";
+
+		var numberOfNewLinesPassed = 0;
+
+		for(var i = 0; i < initialText.length; i ++)
+		{
+			if(numberOfNewLinesPassed == numberOfNewLinesBefore)
+			{
+				break;
+			}
+
+			if(initialText.charAt(i) == '\n')
+			{
+				numberOfNewLinesPassed ++;
+			}
+
+			temp += initialText.charAt(i);
+			//temp += initialText[i];
+		}
+
+		temp += "* ";
+
+		//for(var j = i; j < initialText.length; j ++)
+		//{
+			//temp += initialText.charAt(j);
+			//temp += initialText[i];
+		//}
+
+		temp += initialText.substring(i, initialText.length);
+		document.getElementById('textarea').value = temp;
+		// drew * in front of clicked row
+
+		// get startSecond, stopSecond
+		temp = "";
+
+		var j = i;
+
+		while(initialText.charAt(j) != '\n')
+		{
+			temp += initialText.charAt(j);
+			//temp += initialText[i];
+			j ++;
+		}
+
+		var tokens = temp.split(" ");
+
+		startSecond = parseFloat(tokens[0]);
+		stopSecond = parseFloat(tokens[1]);
+		// got startSecond, stopSecond
+
+		mouseX = (startSecond - forwardSeconds) * (200 * zoom);
+		blueX  = (stopSecond - forwardSeconds) * (200 * zoom);
+
+		draw_wave(data, data.length, mouseX, blueX, forwardSeconds);
+		playFromSecond = (mouseX / (200 * zoom)) + forwardSeconds;
+		document.getElementById("timeTxt").innerHTML = startSecond + " " + stopSecond;
+	}
+
+
+	function loadSelected()
+	{
+		var selectedValue = document.getElementById("mySelect").value;
+
+		var wav = "transaction_" + selectedValue + ".wav";
+		var lab = "transaction_" + selectedValue + ".lab";
+
+		load(wav, lab);
+	}
+
+	function mouseDown(e)
+	{
+		if(playing == 0)
+		{
+			var rect = document.getElementById("Canvas").getBoundingClientRect();
+
+			m = parseInt(e.clientX - rect.left);
+
+			ctx = document.getElementById("Canvas").getContext("2d")
+			ctx.clearRect(0,0,imgWidth,120);
+
+			draw_wave(data, data.length, mouseX, blueX, forwardSeconds);
+			playFromSecond = (m / (200 * zoom)) + forwardSeconds;
+		}
+	}
+
+	function mouseUp(e)
+	{
+		if(playing == 0)
+		{
+			var rect = document.getElementById("Canvas").getBoundingClientRect();
+
+			var b = parseInt(e.clientX - rect.left);
+
+			ctx = document.getElementById("Canvas").getContext("2d");
+			ctx.clearRect(0,0,imgWidth,120);
+
+			if( b - m < 20)
+			{
+				if(Math.abs(mouseX - b) > Math.abs(blueX - b))
+					blueX = b;
+				else
+					mouseX = b;
+			}
+			else
+			{
+				mouseX = m;
+				blueX = b;
+			}
+
+			draw_wave(data, data.length, mouseX, blueX, forwardSeconds);
+
+			var startTime = mouseX / (200 * zoom) + forwardSeconds;
+			var stopTime = blueX / (200 * zoom) + forwardSeconds;
+			document.getElementById("timeTxt").innerHTML = startTime + " " + stopTime;
+		}
+	}
+
+	function draw_wave(buf, cnt, left, right, forwardSeconds)
+	{
+		var i, j, k, h0, h, pos, val, startSample;
+		canvas = document.getElementById("Canvas");
+		ctx = canvas.getContext("2d");
+
+		startSample = forwardSeconds * 16000;
+
+		ctx.clearRect(0,0,29999,120);
+
+		// draw left red v-line
+		ctx.beginPath();
+		ctx.strokeStyle = "red";
+		ctx.lineWidth = 2;
+		ctx.moveTo(left, 0);
+		ctx.lineTo(left, 120);
+		ctx.stroke();
+		// drew left red v-line
+
+		// draw right blue v-line
+		ctx.beginPath();
+		ctx.strokeStyle = "blue";
+		ctx.lineWidth = 2;
+		ctx.moveTo(right, 0);
+		ctx.lineTo(right, 120);
+		ctx.stroke();
+		// drew right blue v-line
+
+		// draw green sound line
+		val = buf[startSample];
+		h0 = Math.floor((60 - (val/max) * 60));
+		ctx.beginPath();
+
+		for(i = 1; i < imgWidth; i++)
+		{
+			pos = Math.floor( (i/imgWidth) * total_samples) + startSample;
+			val = buf[pos];
+			h = Math.floor((60 - (val/max) * 60));
+			ctx.strokeStyle = "green";
+			ctx.lineWidth = 1;
+			ctx.moveTo(i,h0);
+			ctx.lineTo(i,h);
+			h0 = h;
+		}
+
+		ctx.stroke();
+		// drew green sound line
+
+		// draw scale
+		if(seconds > 1)
+		{
+			var interval = (200 * zoom);
+			var numIntervals = seconds;
+			for(j = 0; j < numIntervals; j ++)
+			{
+				ctx.beginPath();
+				ctx.strokeStyle = 'black';
+				ctx.lineWidth = 1.5;
+				ctx.moveTo(j * interval,120);
+				ctx.lineTo(j * interval,110);
+				k = j+forwardSeconds;
+				ctx.fillText(k.toString(), j*interval+2, 120);
+				ctx.stroke();
+			}
+		}
+		// drew scale
+	}
+
+	function start_play()
+	{
+		var d = new Date();
+		var sampleSource = audioCtx.createBufferSource();
+		sampleSource.buffer = audioBuffer;
+		sampleSource.connect(audioCtx.destination);
+		sampleSource2 = sampleSource;
+		startSecond  = d.getTime() / 1000;
+		sampleSource.start(0,playFromSecond);
+	}
+
+	function stop_play()
+	{
+		var d = new Date();
+		stopSecond  = d.getTime() / 1000;
+		playFromSecond += stopSecond - startSecond;
+		sampleSource2.stop(playFromSecond);
+	}
+
+	function rewind_play()
+	{
+		if(playing == 0)
+		{
+			ctx.clearRect(0,0,imgWidth,120);
+			blueX = seconds * (200 * zoom);
+			mouseX = 0;
+			xPos = 0;
+			playing = 0;
+			playFromSecond = forwardSeconds;
+			draw_wave(data, data.length, xPos, blueX, forwardSeconds);
+		}
+	}
+
+	function zoomin()
+	{
+		if(playing == 0)
+		{
+			zoom *= 2;
+			imgWidth = (total_samples / 16000) * (200 * zoom);
+			blueX = imgWidth - forwardSeconds * (200 * zoom);
+			mouseX = 0;
+			xPos = 0;
+			playFromSecond = forwardSeconds;
+			draw_wave(data, data.length, xPos, blueX, forwardSeconds);
+		}
+	}
+
+	function zoomout()
+	{
+		if(playing == 0 && zoom >= 0.25)
+		{
+			zoom /= 2;
+			imgWidth = (total_samples / 16000) * (200 * zoom);
+			blueX = imgWidth - forwardSeconds * (200 * zoom);
+			mouseX = 0;
+			xPos = 0;
+			playFromSecond = forwardSeconds;
+			draw_wave(data, data.length, xPos, blueX, forwardSeconds);
+		}
+	}
+
+
+	function forward10s()
+	{
+		if(playing == 0)
+		{
+			forwardSeconds += 10;
+			seconds = total_samples / 16000 - forwardSeconds;
+			blueX = imgWidth - forwardSeconds * (200 * zoom);
+			mouseX = 0;
+			xPos = 0;
+			playFromSecond = forwardSeconds;
+			playing = 0;
+			draw_wave(data, data.length, xPos, blueX, forwardSeconds);
+		}
+	}
+
+	function backward10s()
+	{
+		if(playing == 0 && forwardSeconds >= 10)
+		{
+			forwardSeconds -= 10;
+			seconds = total_samples / 16000 - forwardSeconds;
+			blueX = imgWidth - forwardSeconds * (200 * zoom);
+			mouseX = 0;
+			xPos = 0;
+			playFromSecond = forwardSeconds;
+			playing = 0;
+			draw_wave(data, data.length, xPos, blueX, forwardSeconds);
+		}
+	}
+
+	function draw_line()
+	{
+		var i, h0, h1, pos, val;
+
+		// toggle
+		if(playing == 1)
+		{
+			playing = 0;
+			stop_play();
+		}
+		else if(playing == 0)
+		{
+			playing = 1;
+			start_play();
+		}
+		// toggled
+
+		const btn = document.getElementById("btn");
+		btn.value = (playing == 1)?"Pause":"Play";
+
+		updateVert();
+
+		function updateVert()
+		{
+			var d;
+			var audioCurrentSecond;
+
+			if(playing == 0)
+			{
+				cancelAnimationFrame(updateVert);
+				return;
+			}
+
+			d = new Date();
+			audioCurrentSecond  = (d.getTime() / 1000) - startSecond + playFromSecond;
+			xPos = (200 * zoom) * (audioCurrentSecond - forwardSeconds);
+
+			// draw red line
+			if(xPos < blueX)
+			{
+				draw_wave(data, data.length, xPos, blueX, forwardSeconds);
+			}
+			else		// xPos >= blueX
+			{
+				draw_line();
+				draw_wave(data, data.length, mouseX, blueX, forwardSeconds);
+				playFromSecond = (mouseX / (200 * zoom)) + forwardSeconds;
+			}
+			// drew red line
+
+			if(playing == 1)
+			{
+				requestAnimationFrame(updateVert);
+			}
+		}
+	}
+
+	function float32ToInt16(buffer)
+	{
+		var l = buffer.length;
+
+		var buf = new Int16Array(l/3);
+		var i = 0;
+		var j = 0;
+
+		while (j<l)
+		{
+			buf[i++] = buffer[j+=3]*0xFFFF;    //convert to 16 bit
+		}
+
+		return buf;
+	}
+
+	async function load(wavFileName, labFileName)
+	{
+		var filePath = 'audio/' + wavFileName;
+		var filePath2 = 'audio/' + labFileName;
+		var response = await fetch(filePath);
+		var arrayBuffer = await response.arrayBuffer();
+		audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+		data = await float32ToInt16(audioBuffer.getChannelData(0));
+
+		// method to get text file
+		await fetch(filePath2, {mode: 'cors'})
+  		.then(function(response) {
+    		return response.text();
+  		})
+  		.then(function(text) {
+    		labelText = text;
+  		})
+  		.catch(function(error) {
+    		alert('Request failed', error)
+ 		});
+
+		zoom = 1.0;
+		document.getElementById("textarea").value = labelText;
+
+		total_samples = data.length;
+		imgWidth = (total_samples / 16000) * (200 * zoom);
+
+		forwardSeconds = 0;
+		seconds = total_samples / 16000 - forwardSeconds;
+		blueX = imgWidth - forwardSeconds * (200 * zoom);
+		mouseX = 0;
+		xPos = 0;
+		playFromSecond = forwardSeconds;
+		playing = 0;
+		max = 0;
+		for(var i = 0; i<total_samples; i++)
+			if(data[i] > max) max = data[i];
+
+		draw_wave(data, data.length, xPos, blueX, forwardSeconds);
+	}
+</script>
+</head>
+</html>
