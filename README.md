@@ -29,4 +29,6 @@ $ NODE_ENV=production node app
  ### Configuration
  ### Troubleshooting
  ### FAQ
- ### Maintainers
+ ### License
+
+Free Software, Hell Yeah!
